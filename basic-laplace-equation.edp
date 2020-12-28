@@ -1,0 +1,44 @@
+// Boundary
+border C(t = 0, 2*pi){x = cos(t); y = sin(t);};
+
+// Alternative, piecewise description of boundary (useful for more complicated boundary conditions:)
+// border Gamma1(t = 0, pi){x = cos(t); y = sin(t); label=C};
+// border Gamma2(t = pi), 2.*pi){x = cos(t); y = sin(t); label=C};
+
+// Elliptical hole in the domain
+// Note that this is only a "hole" because of the positive-orientation convention
+border H(t = 2.*pi, 0){x = 0.1 + 0.3*cos(t); y = 0.5*sin(t);};
+
+// Mesh
+// Note the positive orientation---this assumption is built into FreeFEM
+mesh Th = buildmesh(C(50) + H(50));
+
+// Finite element function space
+// Linear elements
+fespace Vh(Th, P2);
+Vh u, v;
+
+// Inhomogeneous term in PDE
+func f = x*y;
+
+// For benchmarking
+real cpuTime = clock();
+
+// Weakly-formulated problem
+// Default solver is UMFPACK
+solve Poisson(u, v, solver=LU)
+				= int2d(Th)(
+								dx(u)*dx(v)
+								+ dy(u)*dy(v)
+				)
+				- int2d(Th)(
+								f*v
+				)
+				+ on(C, u=0)
+				+ on(H, u=0);
+
+// Output results
+plot(u);
+
+// Display computation time
+cout << "Total computation time: " << (clock() - cpuTime) << " s" << endl;

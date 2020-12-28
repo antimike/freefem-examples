@@ -1,0 +1,41 @@
+load "msh3"
+
+// Mesh size parameter
+real hh = 0.1;
+
+// 2D mesh
+mesh T = square(10, 20, [x*pi - pi/2, 2*y*pi]);
+
+// Parameterization of sphere
+func X = sin(x)*cos(y);
+func Y = sin(x)*sin(y);
+func Z = cos(x);
+
+// Full derivative of parameterization
+func Xdx = cos(x)*cos(y);
+func Xdy = -sin(x)*sin(y);
+func Ydx = cos(x)*sin(y);
+func Ydy = sin(x)*cos(y);
+func Zdx = -sin(x);
+func Zdy = 0;
+
+// Surface element
+// Is there a better way to do this than component-by-component?
+func gxx = Xdx^2 + Ydx^2 + Zdx^2;
+func gyy = Xdy^2 + Ydy^2 + Zdy^2;
+func gxy = Xdx*Xdy + Ydx*Ydy + Zdx*Zdy;
+
+// Periodic conditions
+func periods = [[4, y], [2, y], [1, x], [3, x]];
+
+// 2D Mesh adaptation
+real vv = 1/square(hh);
+T = adaptmesh(T, gxx*vv, gxy*vv, gyy*vv, IsMetric=1, inquire=1, periodic=periods);
+for (int i = 0; i < 3; i++) {
+				T = adaptmesh(T, gxx*vv, gxy*vv, gyy*vv, IsMetric=1, periodic=periods);
+}
+plot(T, wait=true);
+
+// Sphere
+mesh3 Tsphere = movemesh23(T, transfo=[X, Y, Z]);
+plot(Tsphere);

@@ -1,0 +1,72 @@
+mesh T0 = square(10, 10);
+plot(T0, wait=1);
+
+mesh T1 = square(4, 5);
+plot(T1, wait=1);
+
+real x0 = 1.2;
+real x1 = 1.8;
+real y0 = 0;
+real y1 = 1;
+int  n  = 5;
+real m  = 20;
+
+mesh T2 = square(n, m, [x0 + (x1 - x0)*x, y0 + (y1 - y0)*y]);
+
+for (int i = 0; i < 5; ++i) {
+				int[int] labs = [11, 12, 13, 14];
+				mesh T3 = square(3, 3, flags=i, label=labs, region = 10);
+				plot(T3, wait=1, cmm="square flags = " + i);
+}
+
+// Adaptation
+real eps = 0.0001;
+real h = 1;
+real hmin = 0.05;
+func f = 10.0*x^3 + y^3 + h*atan2(eps, sin(5.0*y) - 2.0*x);
+
+mesh T4 = square(5, 5, [-1 + 2*x, -1 + 2*y]);
+
+fespace V4(T4, P2);
+V4 f4 = f;
+plot(f4);
+
+for (int i = 0; i < 2; i++){
+				T4 = adaptmesh(T4, f4);
+				f4 = f;
+				plot(T4, f4, wait=true);
+}
+
+// Poisson problem
+real error = 0.1;
+
+border bottom(t = 0, 1){x = t; y = 0; label=1;}
+border right1(t = 0, 0.5){x = 1; y = t; label=1;}
+border top1(t = 0, 0.5){x = 1 - t; y = 0.5; label=1;}
+border right2(t = 0.5, 1){x = 0.5; y = t; label=1;}
+border top2(t = 0.5, 1){x = 1 - t; y = 1; label=1;}
+border left(t = 0, 1){x = 0; y = 1 - t; label=1;}
+
+mesh Tpoisson = buildmesh(bottom(6) + right1(4) + top1(4) + right2(4) + top2(4) + left(6));
+fespace Vpoisson(Tpoisson, P2);
+Vpoisson u, v;
+
+func fPoisson = 1;
+
+problem Poisson(u, v, solver=CG, eps=1.e-6)
+				= int2d(Tpoisson)(
+								dx(u)*dx(v)
+								+ dy(u)*dy(v)
+				)
+				- int2d(Tpoisson)(
+								fPoisson*v
+				)
+				+ on(1, u=0);
+
+for (int i = 0; i < 4; i++){
+				Poisson;
+				Tpoisson = adaptmesh(Tpoisson, u, err=error);
+				error = error/2;
+}
+
+plot(u, wait=1);

@@ -1,0 +1,70 @@
+// Parameters
+int nn = 2;
+real len = 20.;
+real width = 20.;
+real c = 15.;
+real d = 8.;
+real e = 2.;
+real l = 12.;
+real f = 2.;
+real g = 2.;
+
+// Triangulation
+border front(t = 0, 1){x = len*t; y = 0; label=1;}
+border right(t = 1, 2){x = len; y = width*(t - 1); label=1;}
+border back(t = 2, 3){x = len*(3 - t); y = width; label=1;}
+border left(t = 3, 4){x = 0; y = width*(4 - t); label=1;}
+border wtf1(t = 0, 1){x = 0; y = c - (c - d)*t; label=2;}
+border wtf2(t = 0, 1){x = 0; y = d*(1 - t); label=1;}
+
+border wtf3(t = 0, 1){x = len - f + e*(t - 1); y = g; label=3;}
+border wtf4(t = 1, 4){x = len - f; y = g + l*(t - 1)/3; label=3;}
+border wtf5(t = 4, 5){x = len - f - e*(t - 4); y = l + g; label=3;}
+border wtf6(t = 5, 8){x = len - e - f; y = l + g - l*(t - 5)/3; label=3;}
+
+mesh T = buildmesh(front(10*nn) + right(10*nn) + back(10*nn) + left(10*nn) + wtf3(5*nn) + wtf4(10*nn) + wtf5(5*nn) + wtf6(5*nn));
+real obj = T(len - f - e/2, g + l/2).region;
+real bath = T(0.01, 0.01).region;
+plot(T, wait=1);
+
+// FE space
+fespace V(T, P1);
+V R=(region-bath)/(obj-bath);
+V<complex> v, w;
+V vr, vi;
+
+fespace U(T, P1);
+U u, uu, ff;
+
+// Problem
+solve muwave(v, w)
+				= int2d(T)(
+								v*w*(1 + R)
+								- (dx(v)*dx(w) + dy(v)*dy(w))*(1 - 0.5i)
+				)
+				+ on(1, v=0)
+				+ on(2, v=sin(pi*(y - c)/(c - d)))
+				;
+
+vr = real(v);
+vi = imag(v);
+
+// Plot
+plot(vr, wait=1, ps="rmuonde.ps", fill=true);
+plot(vi, wait=1, ps="imuonde.ps", fill=true);
+
+// Problem (temperature)
+ff = 1e5*(vr^2 + vi^2)*R;
+
+solve temperature(u, uu)
+				= int2d(T)(
+								dx(u)*dx(uu) + dy(u)*dy(uu)
+				)
+				- int2d(T)(
+								ff*uu
+				)
+				+ on(1, 2, u=0)
+				;
+
+// Plot
+plot(u, wait=1, ps="tempmuonde.ps", fill=true);
