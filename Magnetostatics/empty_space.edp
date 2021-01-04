@@ -1,0 +1,102 @@
+load "msh3"
+load "tetgen"
+load "medit"
+load "iovtk"
+
+// Macros (vector calculus)
+macro Curl(Ax, Ay, Az) [dy(Az)-dz(Ay), dz(Ax)-dx(Az), dx(Ay)-dy(Ax)] //
+macro Divergence(Ax, Ay, Az) (dx(Ax) + dy(Ay) + dz(Az)) //
+// TODO: Investigate why the below convenience wrappers don't work
+//macro Div([Ax, Ay, Az]) (Divergence(Ax, Ay, Az)) //
+//macro Curl([Ax, Ay, Az]) (Curl(Ax, Ay, Az)) //
+macro Grad(F) ([dx(F), dy(F), dz(F)]) //
+macro SquareParameterization(x0, x1, y0, y1) [x0 + (x1-x0)*x, y0 + (y1-y0)*y] //
+
+// Parameters
+real Mu0 = 4.*pi*1.e-7;	// Vacuum magnetic permeability (SI)
+real B0 = 100; // External field strength
+
+// Geometry
+int FRONT=1, RIGHT=2, BACK=3, LEFT=4, BOTTOM=5, TOP=6;
+real boxLength = 10;
+int nx=10, ny=10, nz=10;
+//int numCellsPerSide = 10;
+int spaceRegion = 0;
+//int[int] faceLabels = [FRONT, RIGHT, BACK, LEFT, BOTTOM, TOP];
+
+//mesh3 Space = cube(numCellsPerSide, numCellsPerSide, numCellsPerSide,
+				//[boxLength*x - boxLength/2, boxLength*y - boxLength/2, boxLength*z - boxLength/2], label=faceLabels, region=spaceRegion);
+
+//plot(Space, wait=true);
+
+// Mesh-generation schematic:
+// mesh (2D) --> buildLayers (extrude) --> buildBdMesh (boundary mesh) 
+// --> mesh.Gamma (isolate boundaries and glue together, if necessary)
+// tetg(mesh1.Gamma + mesh2.Gamma + ...) (fill shell assembled in previous step with tetragonal cells)
+
+mesh Base = square(nx, ny, SquareParameterization(0, boxLength, 0, boxLength));
+int[int] lup = [0, TOP], ldown = [0, BOTTOM], lside = [FRONT, FRONT, RIGHT, RIGHT, BACK, BACK, LEFT, LEFT];
+mesh3 Cube = buildlayers(Base, nz, zbound=[0, boxLength], labelmid = lside, labelup = lup, labeldown = ldown);
+
+medit("Cube", Cube);
+
+plot(Cube, wait=true);
+
+
+// FEM spaces
+// Naming conventions: "V" --> "Vector," "S" --> "Scalar," "v" --> "volume," "s" --> "surface"
+// Copied from 3d_magnetostatics.edp
+// Not sure what the advantages are of initializing things this way (e.g., aliasing P2 and initializing A to 0)
+func Pk = P2;                      // Quadratic elements
+fespace SsBase(Base, Pk);
+fespace Vv(Cube, [Pk, Pk, Pk]);   // "Naive" vector elements---should I try RT instead (e.g.) for more
+fespace Sv(Cube, Pk);	// For scalars (refinement criterion)
+                                 	// sophisticated problems?
+Vv [Ax, Ay, Az] = [0, 0, 0];     	// Vector potential
+Vv [Wx, Wy, Wz];                 	// Basis functions
+
+// Most naive refinement metric possible
+Sv refinementCriterion = sqrt(Grad(Ax)'*Grad(Ax) + Grad(Ay)'*Grad(Ay) + Grad(Az)'*Grad(Az));
+
+// Problem
+// Possible syntaxes:
+//1. problem foo(discretized functions) = weak formulation; foo; mesh = adaptmesh(mesh, criterion); lather-rinse-repeat
+//2. solve foo(...) = ...; 
+//3. varf foo(...) = ...; matrix<real> stiffnessMatrix = foo(FE type constructors, solver=...); 
+//   real[int] rhs = foo(solutionCtors = 0, basisCtors); soln = stiffnessMatrix^-1 * rhs;
+
+//varf LaplacianMatrix([u], [v]) = int3d(Space)(
+	//Curl(u)'*Curl(v) + Div(u)*Div(v)
+//);
+//varf BoundaryConditions([u], [v]) = on(
+	
+problem vectorLaplace([Ax, Ay, Az], [Wx, Wy, Wz]) = 
+	int3d(Cube)(
+		Curl(Ax, Ay, Az)'*Curl(Wx, Wy, Wz) + Divergence(Ax, Ay, Az)*Divergence(Wx, Wy, Wz)
+	)
+	//+ on(TOP, Ax = -(B0/2)*y, Ay = (B0/2)*x, Az = 0)
+	+ on(TOP, Ax = (B0/2)*y, Ay = -(B0/2)*x, Az = 0)
+	+ on(BOTTOM, Ax = (B0/2)*y, Ay = -(B0/2)*x, Az = 0)
+	+ on(FRONT, Ax = (B0/2)*y, Ay = -(B0/2)*x, Az = 0)
+	+ on(BACK, Ax = (B0/2)*y, Ay = -(B0/2)*x, Az = 0)
+	+ on(LEFT, Ax = (B0/2)*y, Ay = -(B0/2)*x, Az = 0)
+	+ on(RIGHT, Ax = (B0/2)*y, Ay = -(B0/2)*x, Az = 0);
+
+
+vectorLaplace; 
+// Remeshing is...problematic in 3D
+//Space = adaptmesh(Space, x^2 + y^2);
+//vectorLaplace;
+
+Vv [Bx, By, Bz] = Curl(Ax, Ay, Az);
+
+SsBase BxMid, BzMid, AxMid, AyMid;
+BxMid = Bx(x, boxLength/2, z);
+BzMid = Bz(x, boxLength/2, z);
+AxMid = Ax(x, y, boxLength/2);
+AyMid = Ay(x, y, boxLength/2);
+//plot([Bx, By, Bz], wait=true);
+//plot([Ax, Ay, Az], wait=true);
+plot([AxMid, AyMid], wait=true);
+plot([BxMid, BzMid], wait=true);
+//medit("Vector potential", Cube, [Ax, Ay, Az]);

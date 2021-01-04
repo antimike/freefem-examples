@@ -48,7 +48,8 @@ varf vLaplacian ([Ax, Ay, Az], [AAx, AAy, AAz])
 	;
 
 matrix<real> Laplacian = vLaplacian(Ah, Ah, solver=sparsesolver);
-real[int] LaplacianBoundary = vLaplacian(0, Ah);
+real[int] LaplacianBoundary = vLaplacian(0, Ah); 	// There is a special type "unused" which can be invoked
+                                                 	// instead of passing 0 for the first FE constructor
 Ax[] = Laplacian^-1 * LaplacianBoundary;
 
 //Magnetic induction

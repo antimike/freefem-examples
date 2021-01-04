@@ -1,0 +1,26 @@
+load "msh3"
+load "tetgen"
+load "medit"
+load "iovtk"
+
+real x0 = 0;
+real y0 = 0;
+real len = .294;
+real len2 = .126 - .018;
+real height = .294;
+int numBaseCells = 50;
+real numSideCells = 50;
+mesh S1 = square(numBaseCells, numSideCells, [x0 + len*x, y0 + height*y]);
+mesh S2 = square(numBaseCells/2, numSideCells/2, [x0 + .018 + len2*x, y0 + .018 + len2*y]);
+mesh S3 = S1 + S2;
+
+
+//plot(S1, wait=true);
+//plot(S2, wait=true);
+//plot(S3, wait=true);
+
+/*
+Model: 3D Magnetostatic problem in empty space, with boundary conditions as in Cordier
+1. Mesh: Cube
+2. 
+*/
