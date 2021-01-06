@@ -50,22 +50,41 @@ real scaleFactor = 10;
 real aspectRatio = 10;
 real penetrationFraction = .1;
 real penetrationDepth = penetrationFraction*boxLength/scaleFactor;
-mesh TsSC = square(5*nx/scaleFactor, 5*ny/scaleFactor, 
-	SquareParameterization(
-		-boxLength/(2*scaleFactor), boxLength/(2*scaleFactor),
+mesh TsSC2D = square(5*nx/scaleFactor, 5*ny/scaleFactor,   	// The "magic number" 5 was chosen
+	SquareParameterization(                                  	// to make the mesh relatively more dense on the
+		-boxLength/(2*scaleFactor), boxLength/(2*scaleFactor), 	// SC boundary than on the spatial boundary
 		-boxLength/(2*scaleFactor), boxLength/(2*scaleFactor)
 	)
 );
 int[int] SCup = [0, INTERNAL], SCdown = [0, INTERNAL],
 	SCside = [0, INTERNAL, 0, INTERNAL, 0, INTERNAL, 0, INTERNAL];
-mesh3 TvSC = buildlayers(TsSC, 5*nz/(scaleFactor*aspectRatio), 
+mesh3 TvSC = buildlayers(TsSC2D, 5*nz/(scaleFactor*aspectRatio), 
 	zbound=[-boxLength/(2*scaleFactor*aspectRatio), boxLength/(2*scaleFactor*aspectRatio)],
 	labelmid = SCside, labelup = SCup, labeldown = SCdown);
 TvSC = buildBdMesh(TvSC);
 meshS TsSC = TvSC.Gamma;
 
+plot(TvSC, wait=true);
+
+// SLAB WITH HOLE
+//int hole_border = 201;
+//real holeRatio = 0.5;
+//real holeRadius = boxLength/(2*scaleFactor*holeRatio);
+//TsSC1D = buildBdMesh(TsSC1D);
+//meshS TsSC1D = TsSC2D.Gamma;		// Border of 2D mesh extruded to form slab without hole
+//border hole(t = 0, 2*pi) {x = holeRadius*cos(t); y = holeRadius*sin(t); label = hole_border;}
+//mesh TsSChole2D = buildmesh(TsSC1D(5*2*(nx + ny)/scaleFactor) - hole(5*2*(nx + ny)/scaleFactor));
+//mesh3 TvSChole = buildlayers(TsSChole2D, 5*nz/(scaleFactor*aspectRatio), 
+	//zbound=[-boxLength/(2*scaleFactor*aspectRatio), boxLength/(2*scaleFactor*aspectRatio)],
+	//labelmid = SCside, labelup = SCup, labeldown = SCdown);		// TODO: Figure out how to label hole boundary
+//TvSChole = buildBdMesh(TvSChole);
+//meshS TsSChole = TvSChole.Gamma;
+
+//plot(TvSChole, wait=true);
+
 // COMBINED MESH
-meshS 
+//meshS TsTotal = Ts0 + TsSC;
+
 
 
 
