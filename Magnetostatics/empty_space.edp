@@ -85,6 +85,9 @@ problem vectorLaplace([Ax, Ay, Az], [Wx, Wy, Wz]) =
 
 vectorLaplace; 
 // Remeshing is...problematic in 3D
+// TODO: Follow steady_state_current_coil.edp example to add support for:
+// 		1. Magnetic materials;
+//		2. 3D mesh refinement via tetgen.
 //Space = adaptmesh(Space, x^2 + y^2);
 //vectorLaplace;
 

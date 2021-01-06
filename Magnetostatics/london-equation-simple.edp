@@ -1,0 +1,71 @@
+load "msh3"
+load "tetgen"
+load "medit"
+load "iovtk"
+
+// Macros
+macro Curl(Ax, Ay, Az) [dy(Az)-dz(Ay), dz(Ax)-dx(Az), dx(Ay)-dy(Ax)] //
+macro Divergence(Ax, Ay, Az) (dx(Ax) + dy(Ay) + dz(Az)) //
+macro Grad(F) ([dx(F), dy(F), dz(F)]) //
+macro SquareParameterization(a, b, c, d) [a + (b-a)*x, c + (d-c)*y] //
+
+// Parameters
+real Mu0 = 4.*pi*1.e-7;	// Vacuum magnetic permeability (SI)
+real B0 = 100; // External field strength
+
+// Geometry
+
+// BOUNDING BOX
+int FRONT=1, RIGHT=2, BACK=3, LEFT=4, BOTTOM=5, TOP=6;
+int EXTERNAL=100;
+int INTERNAL=110;
+real boxLength = 50;
+int nx=100, ny=100, nz=100;
+int spaceRegion = 0;
+
+// Mesh-generation schematic:
+// mesh (2D) --> buildLayers (extrude) --> buildBdMesh (boundary mesh) 
+// --> mesh.Gamma (isolate boundaries and glue together, if necessary)
+// tetg(mesh1.Gamma + mesh2.Gamma + ...) (fill shell assembled in previous step with tetragonal cells)
+
+// Naming conventions: "T" --> "Triangulation," "v" --> "volume" (i.e., 3D), "s" --> "surface" (2D)
+//mesh Ts02D = square(nx, ny, SquareParameterization(-boxLength/2., boxLength/2., -boxLength/2., boxLength/2.));
+mesh Ts02D = square(nx, ny, 
+	SquareParameterization(
+		-boxLength/2, boxLength/2, 
+		-boxLength/2, boxLength/2
+	)
+);
+int[int] lup = [0, EXTERNAL], ldown = [0, EXTERNAL], 
+	lside = [0, EXTERNAL, 0, EXTERNAL, 0, EXTERNAL, 0, EXTERNAL];
+mesh3 Tv0 = buildlayers(Ts02D, nz, zbound=[-boxLength/2, boxLength/2], labelmid = lside, labelup = lup, labeldown = ldown);
+Tv0 = buildBdMesh(Tv0);
+meshS Ts0 = Tv0.Gamma;
+
+plot(Ts02D, wait=true);
+plot(Ts0, wait=true);
+
+// SUPERCONDUCTING SLAB
+real scaleFactor = 10;
+real aspectRatio = 10;
+real penetrationFraction = .1;
+real penetrationDepth = penetrationFraction*boxLength/scaleFactor;
+mesh TsSC = square(5*nx/scaleFactor, 5*ny/scaleFactor, 
+	SquareParameterization(
+		-boxLength/(2*scaleFactor), boxLength/(2*scaleFactor),
+		-boxLength/(2*scaleFactor), boxLength/(2*scaleFactor)
+	)
+);
+int[int] SCup = [0, INTERNAL], SCdown = [0, INTERNAL],
+	SCside = [0, INTERNAL, 0, INTERNAL, 0, INTERNAL, 0, INTERNAL];
+mesh3 TvSC = buildlayers(TsSC, 5*nz/(scaleFactor*aspectRatio), 
+	zbound=[-boxLength/(2*scaleFactor*aspectRatio), boxLength/(2*scaleFactor*aspectRatio)],
+	labelmid = SCside, labelup = SCup, labeldown = SCdown);
+TvSC = buildBdMesh(TvSC);
+meshS TsSC = TvSC.Gamma;
+
+// COMBINED MESH
+meshS 
+
+
+
