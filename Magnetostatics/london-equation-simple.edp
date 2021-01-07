@@ -5,13 +5,17 @@ load "iovtk"
 
 // Macros
 macro Curl(Ax, Ay, Az) [dy(Az)-dz(Ay), dz(Ax)-dx(Az), dx(Ay)-dy(Ax)] //
-macro Divergence(Ax, Ay, Az) (dx(Ax) + dy(Ay) + dz(Az)) //
+macro Div(Ax, Ay, Az) (dx(Ax) + dy(Ay) + dz(Az)) //
 macro Grad(F) ([dx(F), dy(F), dz(F)]) //
 macro SquareParameterization(a, b, c, d) [a + (b-a)*x, c + (d-c)*y] //
+macro r() (sqrt(x^2 + y^2 + z^2)) //
+macro rho() (sqrt(x^2 + y^2 + z^2)) //
+macro phiHat() [-y/rho(), x/rho(), 0] //
 
 // Parameters
 real Mu0 = 4.*pi*1.e-7;	// Vacuum magnetic permeability (SI)
 real B0 = 100; // External field strength
+real penetrationFraction = .1;
 
 // Geometry
 
@@ -20,8 +24,7 @@ int FRONT=1, RIGHT=2, BACK=3, LEFT=4, BOTTOM=5, TOP=6;
 int EXTERNAL=100;
 int INTERNAL=110;
 real boxLength = 50;
-int nx=100, ny=100, nz=100;
-int spaceRegion = 0;
+int nx=25, ny=25, nz=25;
 
 // Mesh-generation schematic:
 // mesh (2D) --> buildLayers (extrude) --> buildBdMesh (boundary mesh) 
@@ -42,15 +45,13 @@ mesh3 Tv0 = buildlayers(Ts02D, nz, zbound=[-boxLength/2, boxLength/2], labelmid 
 Tv0 = buildBdMesh(Tv0);
 meshS Ts0 = Tv0.Gamma;
 
-plot(Ts02D, wait=true);
+//plot(Ts02D, wait=true);		// This is more annoying than helpful
 //plot(Ts0, wait=true);		// Evidently not supported for 3D meshes...
 medit("Bounding box", Ts0);
 
 // SUPERCONDUCTING SLAB
 real scaleFactor = 10;
 real aspectRatio = 10;
-real penetrationFraction = .1;
-real penetrationDepth = penetrationFraction*boxLength/scaleFactor;
 mesh TsSC2D = square(5*nx/scaleFactor, 5*ny/scaleFactor,   	// The "magic number" 5 was chosen
 	SquareParameterization(                                  	// to make the mesh relatively more dense on the
 		-boxLength/(2*scaleFactor), boxLength/(2*scaleFactor), 	// SC boundary than on the spatial boundary
@@ -82,11 +83,34 @@ medit("SC mesh (no hole)", TvSC);
 //TvSChole = buildBdMesh(TvSChole);
 //meshS TsSChole = TvSChole.Gamma;
 
-plot(TvSChole, wait=true);
+//plot(TvSChole, wait=true);
 
 // COMBINED MESH
-//meshS TsTotal = Ts0 + TsSC;
+meshS TsTotal = Ts0 + TsSC;
+int space = 300;
+int SC = 301;
+real maxvolSpace = boxLength*boxLength*boxLength/(nx*ny*nz);
+real maxvolSC = maxvolSpace/(scaleFactor*scaleFactor*scaleFactor*aspectRatio*5*5*5);
+real[int] regions = [0, 0, boxLength*1.5/scaleFactor, space, maxvolSpace, 0, 0, 0, SC, maxvolSC];
+mesh3 TvTotal = tetg(TsTotal, switch = "pqaAAYYQ", nbofregions = 2, regionlist = regions);
 
+medit("Full triangulation", TvTotal);
 
+// FE SPACES
+fespace Sv0(TvTotal, P0);
+fespace Sv1(TvTotal, P1);
+fespace Vv1(TvTotal, [P2, P2, P2]);
 
+Sv0 inSC = region == SC;
+Sv1 psi;		// Magnetic scalar potential
+Vv2 [Ax, Ay, Az] = [0, 0, 0];               	// Vector potential
+Vv2 [Wx, Wy, Wz];                           	// Basis functions
+Vv2 [Bx, By, Bz] = Curl(Ax, Ay, Az);        	// Magnetic field
+Vv2 [Jx, Jy, Jz] = inSC * Curl(Bx, By, Bz); 	// Current density (only defined in SC)
 
+// PROBLEM DEFINITION
+
+real penetrationDepth = penetrationFraction*boxLength/scaleFactor;
+Vv2 BQ = Phi0/(2*pi*penetrationDepth^2*r())*phiHat();
+
+varf vectorLaplacian = 
