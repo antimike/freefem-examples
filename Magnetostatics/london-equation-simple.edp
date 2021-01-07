@@ -43,7 +43,8 @@ Tv0 = buildBdMesh(Tv0);
 meshS Ts0 = Tv0.Gamma;
 
 plot(Ts02D, wait=true);
-plot(Ts0, wait=true);
+//plot(Ts0, wait=true);		// Evidently not supported for 3D meshes...
+medit("Bounding box", Ts0);
 
 // SUPERCONDUCTING SLAB
 real scaleFactor = 10;
@@ -64,15 +65,16 @@ mesh3 TvSC = buildlayers(TsSC2D, 5*nz/(scaleFactor*aspectRatio),
 TvSC = buildBdMesh(TvSC);
 meshS TsSC = TvSC.Gamma;
 
-plot(TvSC, wait=true);
+//plot(TvSC, wait=true);		// For some reason this isn't supported
+medit("SC mesh (no hole)", TvSC);
 
 // SLAB WITH HOLE
-//int hole_border = 201;
+//int holeBorder = 201;
 //real holeRatio = 0.5;
 //real holeRadius = boxLength/(2*scaleFactor*holeRatio);
-//TsSC1D = buildBdMesh(TsSC1D);
+////TsSC2D = buildBdMesh(TsSC2D);
 //meshS TsSC1D = TsSC2D.Gamma;		// Border of 2D mesh extruded to form slab without hole
-//border hole(t = 0, 2*pi) {x = holeRadius*cos(t); y = holeRadius*sin(t); label = hole_border;}
+//border hole(t = 0, 2*pi) {x = holeRadius*cos(t); y = holeRadius*sin(t); label = holeBorder;}
 //mesh TsSChole2D = buildmesh(TsSC1D(5*2*(nx + ny)/scaleFactor) - hole(5*2*(nx + ny)/scaleFactor));
 //mesh3 TvSChole = buildlayers(TsSChole2D, 5*nz/(scaleFactor*aspectRatio), 
 	//zbound=[-boxLength/(2*scaleFactor*aspectRatio), boxLength/(2*scaleFactor*aspectRatio)],
@@ -80,7 +82,7 @@ plot(TvSC, wait=true);
 //TvSChole = buildBdMesh(TvSChole);
 //meshS TsSChole = TvSChole.Gamma;
 
-//plot(TvSChole, wait=true);
+plot(TvSChole, wait=true);
 
 // COMBINED MESH
 //meshS TsTotal = Ts0 + TsSC;
