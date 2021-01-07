@@ -7,15 +7,21 @@ load "iovtk"
 macro Curl(Ax, Ay, Az) [dy(Az)-dz(Ay), dz(Ax)-dx(Az), dx(Ay)-dy(Ax)] //
 macro Div(Ax, Ay, Az) (dx(Ax) + dy(Ay) + dz(Az)) //
 macro Grad(F) ([dx(F), dy(F), dz(F)]) //
+macro dn(f) (N.x*dx(f) + N.y*dy(f) + N.z*dz(f)) //
 macro SquareParameterization(a, b, c, d) [a + (b-a)*x, c + (d-c)*y] //
-macro r() (sqrt(x^2 + y^2 + z^2)) //
-macro rho() (sqrt(x^2 + y^2 + z^2)) //
-macro phiHat() [-y/rho(), x/rho(), 0] //
+
+func r = sqrt(x^2 + y^2 + z^2);
+func rho = sqrt(x^2 + y^2);
+//func phiHat = [-y/rho, x/rho, 0];
+real rho0 = 1e-3;
+real rhoApprox = rho >= rho0 ? rho : rho0;
+func phiHat = [-y/rhoApprox, x/rhoApprox, 0];
 
 // Parameters
 real Mu0 = 4.*pi*1.e-7;	// Vacuum magnetic permeability (SI)
 real B0 = 100; // External field strength
 real penetrationFraction = .1;
+real fluxQuantum = 1.;
 
 // Geometry
 
@@ -99,18 +105,57 @@ medit("Full triangulation", TvTotal);
 // FE SPACES
 fespace Sv0(TvTotal, P0);
 fespace Sv1(TvTotal, P1);
-fespace Vv1(TvTotal, [P2, P2, P2]);
+fespace Vv2(TvTotal, [P2, P2, P2]);
 
-Sv0 inSC = region == SC;
-Sv1 psi;		// Magnetic scalar potential
-Vv2 [Ax, Ay, Az] = [0, 0, 0];               	// Vector potential
-Vv2 [Wx, Wy, Wz];                           	// Basis functions
-Vv2 [Bx, By, Bz] = Curl(Ax, Ay, Az);        	// Magnetic field
-Vv2 [Jx, Jy, Jz] = inSC * Curl(Bx, By, Bz); 	// Current density (only defined in SC)
 
 // PROBLEM DEFINITION
-
+real penaltyConstant = 1.;
 real penetrationDepth = penetrationFraction*boxLength/scaleFactor;
-Vv2 BQ = Phi0/(2*pi*penetrationDepth^2*r())*phiHat();
+real JsPrefactor = 1/(Mu0*penetrationDepth^2);
+real AqPrefactor = fluxQuantum/(2*pi*rho);
 
-varf vectorLaplacian = 
+Sv0 inSC = region == SC;
+Sv1 Psi;		// Magnetic scalar potential
+Vv2 [Ax, Ay, Az] = [0, 0, 0];               	// Vector potential
+Vv2 [Wx, Wy, Wz];                           	// Vector basis functions
+Sv1 v;		// Scalar basis functions for magnetic scalar potential
+Sv1 u;		// Scalar basis functions for single-valued "phase"
+Vv2 [Bx, By, Bz] = Curl(Ax, Ay, Az);        	// Magnetic field
+Vv2 [Hxx, Hxy, Hxz] = [0, 0, 1];		// External (applied) magnetic field
+Vv2 [Jx, Jy, Jz] = inSC * Curl(Bx, By, Bz); 	// Current density (only defined in SC)
+//Vv2 [Jsx, Jsy, Jsz] = JsPrefactor*(fluxQuantum*phiHat/(2*pi*rho) - [Ax, Ay, Az]);
+// While well-intentioned, the above doesn't work since it combines linear and bilinear terms
+Vv2 [AQx, AQy, AQz] = AqPrefactor*phiHat;
+
+                                                      	
+
+varf vectorLaplacian([Ax, Ay, Az], [Wx, Wy, Wz]) = 
+	int3d(TvTotal)(Curl(Ax, Ay, Az)'*Curl(Wx, Wy, Wz) - Div(Ax, Ay, Az)*Div(Wx, Wy, Wz));
+// Not necessary
+//varf continuityForm = 
+	//int3d(Vv2)(JsPrefactor*inSC*Div(Wx, Wy, Wz)*[Ax, Ay, Az])		// Bilinear term (homogeneous)
+	//- int3d(Vv2)(inSC*JsPrefactor*fluxQuantum/(2*pi*rho)*Div(Wx, Wy, Wz)*phiHat)		// Linear term (inhomogeneous)
+	//- int2d(TsSC)(JsPrefactor*[Wx, Wy, Wz]'*[Ax, Ay, Az])		// Bilinear boundary term
+	//+ int2d(TsSC)(JsPrefactor*fluxQuantum/(2*pi*rho)*[Wx, Wy, Wz]'*phiHat);		// Linear boundary term
+// This doesn't work---varf needs at least two arguments
+//varf rhsTerm([Wx, Wy, Wz]) = 
+	//int3d(TvTotal)(Mu0*JsPrefactor*inSC*[AQx, AQy, AQz]'*[Wx, Wy, Wz]);
+//varf currentBoundaryTerm([Ax, Ay, Az]) = 
+	//on(INTERNAL, JsPrefactor*fluxQuantum/(2*pi*rho)*N'*phiHat - JsPrefactor*N'*[Ax, Ay, Az]);
+//// TODO: Figure out how to implement a cross-product with surface normal
+////varf spaceBoundaryTerm =
+	////on(EXTERNAL, 
+//varf spaceBoundaryTerm([Ax, Ay, Az]) = 
+	//on(EXTERNAL, Curl(Ax, Ay, Az) - [Hxx, Hxy, Hxy]);
+
+problem oneVortexNoHole([Ax, Ay, Az], [Wx, Wy, Wz]) = 
+	int3d(TvTotal)(Curl(Ax, Ay, Az)'*Curl(Wx, Wy, Wz) - Div(Ax, Ay, Az)*Div(Wx, Wy, Wz))
+	//+ on(INTERNAL, fluxQuantum/(2*pi*rhoApprox^2)*(-y*N.x + x*N.y) = Ax*N.x + Ay*N.y + Az*N.z)
+	//+ on(INTERNAL, Ax=Ay)
+	//+ on(EXTERNAL, Curl(Ax, Ay, Az) = [Hxx, Hxy, Hxy])
+	//+ on(EXTERNAL, dy(Az) = Hxx + dz(Ay))
+	- int3d(TvTotal)(Mu0*JsPrefactor*inSC*[AQx, AQy, AQz]'*[Wx, Wy, Wz]);
+
+//oneVortexNoHole;
+
+
